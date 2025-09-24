@@ -31,6 +31,8 @@
         #imageList input { width: 150px; margin-right: 5px; }
         .toolBtn { width: 100%; margin: 5px 0; }
         input[type="radio"] { margin-right: 5px; }
+        #fileInput { display: none; }
+        .actionBtn { width: 100%; margin: 5px 0; }
     </style>
 </head>
 <body>
@@ -55,7 +57,9 @@
             <h3>Cuadros</h3>
             <div id="imageList"></div>
             
-            <button onclick="saveJSON()" style="margin-top: 20px; width: 100%;">Guardar JSON</button>
+            <button onclick="saveJSON()" class="actionBtn">Guardar JSON</button>
+            <input type="file" id="fileInput" accept=".json" onchange="importJSON(event)">
+            <button onclick="document.getElementById('fileInput').click()" class="actionBtn">Importar JSON</button>
         </div>
     </div>
 
@@ -146,13 +150,9 @@
             const right = left + width;
             const bottom = top + height;
 
-            // NW
             if (mx >= left - half && mx <= left + half && my >= top - half && my <= top + half) return 'nw';
-            // NE
             if (mx >= right - half && mx <= right + half && my >= top - half && my <= top + half) return 'ne';
-            // SW
             if (mx >= left - half && mx <= left + half && my >= bottom - half && my <= bottom + half) return 'sw';
-            // SE
             if (mx >= right - half && mx <= right + half && my >= bottom - half && my <= bottom + half) return 'se';
             return null;
         }
@@ -174,9 +174,9 @@
                 pivotRelY = (pos.y - top) / height;
                 startX = pos.x;
                 startY = pos.y;
-                initialDist = Math.sqrt((pos.x - startX)**2 + (pos.y - startY)**2); // Initial dist 0, but will use in move
+                initialDist = Math.sqrt((pos.x - startX)**2 + (pos.y - startY)**2);
                 canvas.style.cursor = 'zoom-in';
-            } else { // modificador
+            } else {
                 selectedImage = getImageAt(pos.x, pos.y);
                 if (!selectedImage) {
                     mode = 'none';
@@ -201,10 +201,9 @@
                     if (initialDist > 0) {
                         scale = currentDist / initialDist;
                     } else {
-                        // First move, use a base scale based on distance
-                        scale = 1 + (currentDist / 100); // Arbitrary sensitivity
+                        scale = 1 + (currentDist / 100);
                     }
-                    if (scale < 0.1) scale = 0.1; // Min scale
+                    if (scale < 0.1) scale = 0.1;
                     const oldWidth = (selectedImage.ancho / 100) * logicalW;
                     const oldHeight = (selectedImage.alto / 100) * logicalH;
                     const newWidth = oldWidth * scale;
@@ -215,7 +214,7 @@
                     selectedImage.y = (newTop / logicalH) * 100;
                     selectedImage.ancho = (newWidth / logicalW) * 100;
                     selectedImage.alto = (newHeight / logicalH) * 100;
-                    startX = pos.x; // Update start for continuous
+                    startX = pos.x;
                     startY = pos.y;
                     initialDist = currentDist;
                     draw();
@@ -342,10 +341,10 @@
                 ctx.strokeRect(px, py, pw, ph);
                 const hs = 10;
                 ctx.fillStyle = 'red';
-                ctx.fillRect(px - hs / 2, py - hs / 2, hs, hs); // NW
-                ctx.fillRect(px + pw - hs / 2, py - hs / 2, hs, hs); // NE
-                ctx.fillRect(px - hs / 2, py + ph - hs / 2, hs, hs); // SW
-                ctx.fillRect(px + pw - hs / 2, py + ph - hs / 2, hs, hs); // SE
+                ctx.fillRect(px - hs / 2, py - hs / 2, hs, hs);
+                ctx.fillRect(px + pw - hs / 2, py - hs / 2, hs, hs);
+                ctx.fillRect(px - hs / 2, py + ph - hs / 2, hs, hs);
+                ctx.fillRect(px + pw - hs / 2, py + ph - hs / 2, hs, hs);
             }
         }
 
@@ -375,6 +374,49 @@
             document.getElementById('urlInput').value = '';
             draw();
             updateList();
+        }
+
+        function importJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const jsonData = JSON.parse(e.target.result);
+                    if (!jsonData.nombre || !jsonData.cuadros || !Array.isArray(jsonData.cuadros)) {
+                        throw new Error('Formato JSON inválido');
+                    }
+                    images = [];
+                    selectedImage = null;
+                    jsonData.cuadros.forEach(cuadro => {
+                        const imgData = {
+                            name: cuadro.nombre || `cuadro ${images.length + 1}`,
+                            x: cuadro.x || 0,
+                            y: cuadro.y || 0,
+                            ancho: cuadro.ancho || 20,
+                            alto: cuadro.alto || 20,
+                            url: cuadro.url || '',
+                            img: new Image()
+                        };
+                        imgData.img.crossOrigin = 'anonymous';
+                        imgData.img.onload = () => {
+                            draw();
+                            updateList();
+                        };
+                        imgData.img.onerror = () => {
+                            console.warn(`No se pudo cargar la imagen: ${imgData.url}`);
+                        };
+                        imgData.img.src = imgData.url;
+                        images.push(imgData);
+                    });
+                    draw();
+                    updateList();
+                } catch (error) {
+                    alert('Error al importar JSON: ' + error.message);
+                }
+                document.getElementById('fileInput').value = '';
+            };
+            reader.readAsText(file);
         }
 
         function updateList() {
