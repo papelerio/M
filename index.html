@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editor de Menús para Juegos - Generador de JSON</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+            display: flex;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+        #preview-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            background-color: white;
+            border-right: 1px solid #ccc;
+        }
+        #preview-container {
+            position: relative;
+            border: 2px solid #333;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        #preview {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background-color: #000; /* Fondo negro para simular pantalla */
+        }
+        .frame {
+            position: absolute;
+            border: 1px dashed #ff0000;
+            background-size: cover;
+            background-position: center;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px black;
+        }
+        #view-toggle {
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+        #view-toggle:hover {
+            background-color: #0056b3;
+        }
+        #controls-panel {
+            flex: 0 0 400px;
+            padding: 20px;
+            background-color: white;
+            overflow-y: auto;
+        }
+        input, button {
+            margin: 5px 0;
+            padding: 8px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        .delete-btn {
+            background-color: #dc3545;
+            width: auto;
+            padding: 5px 10px;
+        }
+        .delete-btn:hover {
+            background-color: #c82333;
+        }
+        .frame-section {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 10px 0;
+            background-color: #f9f9f9;
+        }
+        #download-btn {
+            background-color: #17a2b8;
+            margin-top: 20px;
+        }
+        #download-btn:hover {
+            background-color: #138496;
+        }
+        h2, h3 {
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="preview-panel">
+        <button id="view-toggle">Cambiar a Vista Móvil</button>
+        <div id="preview-container">
+            <div id="preview"></div>
+        </div>
+    </div>
+    <div id="controls-panel">
+        <h2>Editor de Menús</h2>
+        <label>Nombre del Menú:</label>
+        <input type="text" id="menu-name" placeholder="Ej: Menú Principal" value="Menú Principal">
+
+        <h3>Agregar Cuadro</h3>
+        <label>Nombre del Cuadro:</label>
+        <input type="text" id="frame-name" placeholder="Ej: Cuadro 1">
+        <label>Posición X (%):</label>
+        <input type="number" id="frame-x" min="0" max="100" value="0">
+        <label>Posición Y (%):</label>
+        <input type="number" id="frame-y" min="0" max="100" value="0">
+        <label>Ancho (%):</label>
+        <input type="number" id="frame-width" min="1" max="100" value="50">
+        <label>Alto (%):</label>
+        <input type="number" id="frame-height" min="1" max="100" value="50">
+        <label>Imagen (URL o archivo):</label>
+        <input type="file" id="frame-image" accept="image/*">
+        <button id="add-frame">Agregar Cuadro</button>
+
+        <h3>Cuadros Existentes</h3>
+        <div id="frames-list"></div>
+
+        <button id="download-btn">Generar y Descargar JSON</button>
+    </div>
+
+    <script>
+        let frames = []; // Array de objetos {nombre, x, y, ancho, alto, url}
+        let isMobileView = false;
+        const preview = document.getElementById('preview');
+        const previewContainer = document.getElementById('preview-container');
+        const framesList = document.getElementById('frames-list');
+
+        // Configuraciones de vista
+        const views = {
+            pc: { width: '800px', height: '600px' }, // Aproximado PC
+            mobile: { width: '375px', height: '667px' } // Aproximado Mobile
+        };
+
+        function updatePreview() {
+            preview.innerHTML = '';
+            frames.forEach((frame, index) => {
+                const div = document.createElement('div');
+                div.className = 'frame';
+                div.style.left = frame.x + '%';
+                div.style.top = frame.y + '%';
+                div.style.width = frame.ancho + '%';
+                div.style.height = frame.alto + '%';
+                if (frame.url) {
+                    div.style.backgroundImage = `url(${frame.url})`;
+                }
+                div.textContent = frame.nombre;
+                div.title = frame.nombre;
+                div.onclick = () => selectFrame(index);
+                preview.appendChild(div);
+            });
+        }
+
+        function selectFrame(index) {
+            // Aquí podrías agregar lógica para editar el cuadro seleccionado, pero por simplicidad, solo actualiza preview
+            updateFrameInputs(index);
+        }
+
+        function updateFrameInputs(index) {
+            const frame = frames[index];
+            if (frame) {
+                document.getElementById('frame-name').value = frame.nombre;
+                document.getElementById('frame-x').value = frame.x;
+                document.getElementById('frame-y').value = frame.y;
+                document.getElementById('frame-width').value = frame.ancho;
+                document.getElementById('frame-height').value = frame.alto;
+                // Para imagen, no actualizamos input file, ya que es read-only
+            }
+        }
+
+        function renderFramesList() {
+            framesList.innerHTML = '';
+            frames.forEach((frame, index) => {
+                const section = document.createElement('div');
+                section.className = 'frame-section';
+                section.innerHTML = `
+                    <h4>${frame.nombre}</h4>
+                    <label>X: <input type="number" value="${frame.x}" onchange="updateFrame(${index}, 'x', this.value)"></label>
+                    <label>Y: <input type="number" value="${frame.y}" onchange="updateFrame(${index}, 'y', this.value)"></label>
+                    <label>Ancho: <input type="number" value="${frame.ancho}" onchange="updateFrame(${index}, 'ancho', this.value)"></label>
+                    <label>Alto: <input type="number" value="${frame.alto}" onchange="updateFrame(${index}, 'alto', this.value)"></label>
+                    <label>URL: <input type="text" value="${frame.url}" style="width: 70%;" onchange="updateFrame(${index}, 'url', this.value)"></label>
+                    <input type="file" accept="image/*" onchange="updateFrameImage(${index}, this.files[0])">
+                    <button class="delete-btn" onclick="deleteFrame(${index})">Eliminar</button>
+                `;
+                framesList.appendChild(section);
+            });
+        }
+
+        function updateFrame(index, prop, value) {
+            frames[index][prop] = parseFloat(value);
+            updatePreview();
+        }
+
+        function updateFrameImage(index, file) {
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    frames[index].url = e.target.result;
+                    updatePreview();
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function deleteFrame(index) {
+            frames.splice(index, 1);
+            renderFramesList();
+            updatePreview();
+        }
+
+        function addFrame() {
+            const name = document.getElementById('frame-name').value || 'Cuadro Nuevo';
+            const x = parseFloat(document.getElementById('frame-x').value) || 0;
+            const y = parseFloat(document.getElementById('frame-y').value) || 0;
+            const ancho = parseFloat(document.getElementById('frame-width').value) || 50;
+            const alto = parseFloat(document.getElementById('frame-height').value) || 50;
+            const file = document.getElementById('frame-image').files[0];
+            let url = '';
+
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    url = e.target.result;
+                    frames.push({nombre: name, x, y, ancho, alto, url});
+                    renderFramesList();
+                    updatePreview();
+                    // Reset form
+                    document.getElementById('frame-name').value = '';
+                    document.getElementById('frame-x').value = 0;
+                    document.getElementById('frame-y').value = 0;
+                    document.getElementById('frame-width').value = 50;
+                    document.getElementById('frame-height').value = 50;
+                    document.getElementById('frame-image').value = '';
+                };
+                reader.readAsDataURL(file);
+            } else {
+                frames.push({nombre: name, x, y, ancho, alto, url: ''});
+                renderFramesList();
+                updatePreview();
+                // Reset form
+                document.getElementById('frame-name').value = '';
+                document.getElementById('frame-x').value = 0;
+                document.getElementById('frame-y').value = 0;
+                document.getElementById('frame-width').value = 50;
+                document.getElementById('frame-height').value = 50;
+                document.getElementById('frame-image').value = '';
+            }
+        }
+
+        function toggleView() {
+            isMobileView = !isMobileView;
+            const view = isMobileView ? views.mobile : views.pc;
+            previewContainer.style.width = view.width;
+            previewContainer.style.height = view.height;
+            document.getElementById('view-toggle').textContent = isMobileView ? 'Cambiar a Vista PC' : 'Cambiar a Vista Móvil';
+            updatePreview(); // Re-render para escalado
+        }
+
+        function generateJSON() {
+            const nombre = document.getElementById('menu-name').value || 'Menú Sin Nombre';
+            const json = {
+                nombre: nombre,
+                cuadros: frames.map(f => ({
+                    nombre: f.nombre,
+                    x: f.x,
+                    y: f.y,
+                    alto: f.alto,
+                    ancho: f.ancho,
+                    url: f.url
+                }))
+            };
+            return JSON.stringify(json, null, 2);
+        }
+
+        function downloadJSON() {
+            const json = generateJSON();
+            const blob = new Blob([json], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${document.getElementById('menu-name').value || 'menu'}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Event listeners
+        document.getElementById('add-frame').addEventListener('click', addFrame);
+        document.getElementById('view-toggle').addEventListener('click', toggleView);
+        document.getElementById('download-btn').addEventListener('click', downloadJSON);
+
+        // Inicializar
+        toggleView(); // Set initial PC view
+        renderFramesList();
+        updatePreview();
+    </script>
+</body>
+</html>
