@@ -29,6 +29,8 @@
         button { margin: 2px; padding: 5px; }
         #imageList div { margin-bottom: 10px; border: 1px solid #ddd; padding: 5px; }
         #imageList input { width: 150px; margin-right: 5px; }
+        .toolBtn { width: 100%; margin: 5px 0; }
+        input[type="radio"] { margin-right: 5px; }
     </style>
 </head>
 <body>
@@ -41,6 +43,10 @@
             <button class="viewBtn" onclick="setView('pc')">PC Horizontal (1920x1080)</button>
             <button class="viewBtn" onclick="setView('mobileH')">Móvil Horizontal (800x480)</button>
             <button class="viewBtn" onclick="setView('mobileV')">Móvil Vertical (480x800)</button>
+            
+            <h3>Herramientas</h3>
+            <label><input type="radio" name="tool" value="modificador" checked onchange="selectTool('modificador')"> Modificador</label><br>
+            <label><input type="radio" name="tool" value="zoom" onchange="selectTool('zoom')"> Zoom de Imagen</label>
             
             <h3>Añadir Imagen</h3>
             <input type="text" id="urlInput" placeholder="Colocar URL de la imagen (GIF, PNG, etc.)">
@@ -60,15 +66,24 @@
         let currentView = 'pc';
         let zoom = 1;
         let selectedImage = null;
+        let currentTool = 'modificador';
         let mode = 'none';
         let startX, startY;
         let logicalW, logicalH;
+        let pivotRelX, pivotRelY, initialDist;
 
         const views = {
             'pc': { w: 1920, h: 1080 },
             'mobileH': { w: 800, h: 480 },
             'mobileV': { w: 480, h: 800 }
         };
+
+        function selectTool(tool) {
+            currentTool = tool;
+            mode = 'none';
+            canvas.style.cursor = 'default';
+            draw();
+        }
 
         function setView(viewName) {
             currentView = viewName;
@@ -110,8 +125,10 @@
                 const img = images[i];
                 if (!img.img || !img.img.complete) continue;
                 const { x: left, y: top } = getLogicalPosFromPercent(img.x, img.y);
-                const right = left + (img.ancho / 100) * logicalW;
-                const bottom = top + (img.alto / 100) * logicalH;
+                const width = (img.ancho / 100) * logicalW;
+                const height = (img.alto / 100) * logicalH;
+                const right = left + width;
+                const bottom = top + height;
                 if (mx >= left && mx <= right && my >= top && bottom >= my) {
                     return img;
                 }
@@ -124,8 +141,10 @@
             const logicalHandleSize = handleScreenSize / zoom;
             const half = logicalHandleSize / 2;
             const { x: left, y: top } = getLogicalPosFromPercent(img.x, img.y);
-            const right = left + (img.ancho / 100) * logicalW;
-            const bottom = top + (img.alto / 100) * logicalH;
+            const width = (img.ancho / 100) * logicalW;
+            const height = (img.alto / 100) * logicalH;
+            const right = left + width;
+            const bottom = top + height;
 
             // NW
             if (mx >= left - half && mx <= left + half && my >= top - half && my <= top + half) return 'nw';
@@ -144,75 +163,153 @@
 
         canvas.addEventListener('mousedown', (e) => {
             const pos = getMousePos(e);
-            selectedImage = getImageAt(pos.x, pos.y);
-            if (!selectedImage) {
-                mode = 'none';
-                draw();
-                return;
+            if (currentTool === 'zoom') {
+                selectedImage = getImageAt(pos.x, pos.y);
+                if (!selectedImage) return;
+                mode = 'zoom';
+                const { x: left, y: top } = getLogicalPosFromPercent(selectedImage.x, selectedImage.y);
+                const width = (selectedImage.ancho / 100) * logicalW;
+                const height = (selectedImage.alto / 100) * logicalH;
+                pivotRelX = (pos.x - left) / width;
+                pivotRelY = (pos.y - top) / height;
+                startX = pos.x;
+                startY = pos.y;
+                initialDist = Math.sqrt((pos.x - startX)**2 + (pos.y - startY)**2); // Initial dist 0, but will use in move
+                canvas.style.cursor = 'zoom-in';
+            } else { // modificador
+                selectedImage = getImageAt(pos.x, pos.y);
+                if (!selectedImage) {
+                    mode = 'none';
+                    draw();
+                    return;
+                }
+                const handle = getHandleAt(selectedImage, pos.x, pos.y);
+                mode = handle || 'drag';
+                startX = pos.x;
+                startY = pos.y;
             }
-            const handle = getHandleAt(selectedImage, pos.x, pos.y);
-            mode = handle || 'drag';
-            startX = pos.x;
-            startY = pos.y;
         });
 
         canvas.addEventListener('mousemove', (e) => {
             const pos = getMousePos(e);
             if (mode !== 'none') {
-                const dx = pos.x - startX;
-                const dy = pos.y - startY;
-                const { x: origLeft, y: origTop } = getLogicalPosFromPercent(selectedImage.x, selectedImage.y);
-                const origRight = origLeft + (selectedImage.ancho / 100) * logicalW;
-                const origBottom = origTop + (selectedImage.alto / 100) * logicalH;
-
-                if (mode === 'drag') {
-                    selectedImage.x = Math.max(0, Math.min(100, ((origLeft + dx) / logicalW) * 100));
-                    selectedImage.y = Math.max(0, Math.min(100, ((origTop + dy) / logicalH) * 100));
-                } else if (mode === 'nw') {
-                    const newLeft = origLeft + dx;
-                    const newTop = origTop + dy;
-                    selectedImage.x = Math.max(0, (newLeft / logicalW) * 100);
-                    selectedImage.y = Math.max(0, (newTop / logicalH) * 100);
-                    selectedImage.ancho = Math.max(1, Math.min(100 - selectedImage.x, ((origRight - newLeft) / logicalW) * 100));
-                    selectedImage.alto = Math.max(1, Math.min(100 - selectedImage.y, ((origBottom - newTop) / logicalH) * 100));
-                } else if (mode === 'ne') {
-                    const newRight = origRight + dx;
-                    const newTop = origTop + dy;
-                    selectedImage.y = Math.max(0, (newTop / logicalH) * 100);
-                    selectedImage.ancho = Math.max(1, Math.min(100 - selectedImage.x, ((newRight - origLeft) / logicalW) * 100));
-                    selectedImage.alto = Math.max(1, Math.min(100 - selectedImage.y, ((origBottom - newTop) / logicalH) * 100));
-                } else if (mode === 'sw') {
-                    const newLeft = origLeft + dx;
-                    const newBottom = origBottom + dy;
-                    selectedImage.x = Math.max(0, (newLeft / logicalW) * 100);
-                    selectedImage.ancho = Math.max(1, Math.min(100 - selectedImage.x, ((origRight - newLeft) / logicalW) * 100));
-                    selectedImage.alto = Math.max(1, Math.min(100 - selectedImage.y, ((newBottom - origTop) / logicalH) * 100));
-                } else if (mode === 'se') {
-                    const newRight = origRight + dx;
-                    const newBottom = origBottom + dy;
-                    selectedImage.ancho = Math.max(1, Math.min(100 - selectedImage.x, ((newRight - origLeft) / logicalW) * 100));
-                    selectedImage.alto = Math.max(1, Math.min(100 - selectedImage.y, ((newBottom - origTop) / logicalH) * 100));
-                }
-                startX = pos.x;
-                startY = pos.y;
-                draw();
-            } else {
-                const img = getImageAt(pos.x, pos.y);
-                if (img) {
-                    const handle = getHandleAt(img, pos.x, pos.y);
-                    if (handle) {
-                        canvas.style.cursor = getCursorForHandle(handle);
+                if (currentTool === 'zoom' && mode === 'zoom') {
+                    const dx = pos.x - startX;
+                    const dy = pos.y - startY;
+                    const currentDist = Math.sqrt(dx*dx + dy*dy);
+                    let scale = 1;
+                    if (initialDist > 0) {
+                        scale = currentDist / initialDist;
                     } else {
-                        canvas.style.cursor = 'move';
+                        // First move, use a base scale based on distance
+                        scale = 1 + (currentDist / 100); // Arbitrary sensitivity
                     }
+                    if (scale < 0.1) scale = 0.1; // Min scale
+                    const oldWidth = (selectedImage.ancho / 100) * logicalW;
+                    const oldHeight = (selectedImage.alto / 100) * logicalH;
+                    const newWidth = oldWidth * scale;
+                    const newHeight = oldHeight * scale;
+                    const newLeft = startX - pivotRelX * newWidth;
+                    const newTop = startY - pivotRelY * newHeight;
+                    selectedImage.x = (newLeft / logicalW) * 100;
+                    selectedImage.y = (newTop / logicalH) * 100;
+                    selectedImage.ancho = (newWidth / logicalW) * 100;
+                    selectedImage.alto = (newHeight / logicalH) * 100;
+                    startX = pos.x; // Update start for continuous
+                    startY = pos.y;
+                    initialDist = currentDist;
+                    draw();
+                } else if (mode === 'drag') {
+                    const dx = pos.x - startX;
+                    const dy = pos.y - startY;
+                    const { x: origLeft, y: origTop } = getLogicalPosFromPercent(selectedImage.x, selectedImage.y);
+                    selectedImage.x = ((origLeft + dx) / logicalW) * 100;
+                    selectedImage.y = ((origTop + dy) / logicalH) * 100;
+                    startX = pos.x;
+                    startY = pos.y;
+                    draw();
+                } else if (mode === 'nw') {
+                    const dx = pos.x - startX;
+                    const dy = pos.y - startY;
+                    const { x: origLeft, y: origTop } = getLogicalPosFromPercent(selectedImage.x, selectedImage.y);
+                    const origRight = origLeft + (selectedImage.ancho / 100) * logicalW;
+                    const origBottom = origTop + (selectedImage.alto / 100) * logicalH;
+                    const newLeft = origLeft + dx;
+                    const newTop = origTop + dy;
+                    selectedImage.x = (newLeft / logicalW) * 100;
+                    selectedImage.y = (newTop / logicalH) * 100;
+                    selectedImage.ancho = ((origRight - newLeft) / logicalW) * 100;
+                    selectedImage.alto = ((origBottom - newTop) / logicalH) * 100;
+                    startX = pos.x;
+                    startY = pos.y;
+                    draw();
+                } else if (mode === 'ne') {
+                    const dx = pos.x - startX;
+                    const dy = pos.y - startY;
+                    const { x: origLeft, y: origTop } = getLogicalPosFromPercent(selectedImage.x, selectedImage.y);
+                    const origRight = origLeft + (selectedImage.ancho / 100) * logicalW;
+                    const origBottom = origTop + (selectedImage.alto / 100) * logicalH;
+                    const newRight = origRight + dx;
+                    const newTop = origTop + dy;
+                    selectedImage.y = (newTop / logicalH) * 100;
+                    selectedImage.ancho = ((newRight - origLeft) / logicalW) * 100;
+                    selectedImage.alto = ((origBottom - newTop) / logicalH) * 100;
+                    startX = pos.x;
+                    startY = pos.y;
+                    draw();
+                } else if (mode === 'sw') {
+                    const dx = pos.x - startX;
+                    const dy = pos.y - startY;
+                    const { x: origLeft, y: origTop } = getLogicalPosFromPercent(selectedImage.x, selectedImage.y);
+                    const origRight = origLeft + (selectedImage.ancho / 100) * logicalW;
+                    const origBottom = origTop + (selectedImage.alto / 100) * logicalH;
+                    const newLeft = origLeft + dx;
+                    const newBottom = origBottom + dy;
+                    selectedImage.x = (newLeft / logicalW) * 100;
+                    selectedImage.ancho = ((origRight - newLeft) / logicalW) * 100;
+                    selectedImage.alto = ((newBottom - origTop) / logicalH) * 100;
+                    startX = pos.x;
+                    startY = pos.y;
+                    draw();
+                } else if (mode === 'se') {
+                    const dx = pos.x - startX;
+                    const dy = pos.y - startY;
+                    const { x: origLeft, y: origTop } = getLogicalPosFromPercent(selectedImage.x, selectedImage.y);
+                    const origRight = origLeft + (selectedImage.ancho / 100) * logicalW;
+                    const origBottom = origTop + (selectedImage.alto / 100) * logicalH;
+                    const newRight = origRight + dx;
+                    const newBottom = origBottom + dy;
+                    selectedImage.ancho = ((newRight - origLeft) / logicalW) * 100;
+                    selectedImage.alto = ((newBottom - origTop) / logicalH) * 100;
+                    startX = pos.x;
+                    startY = pos.y;
+                    draw();
+                }
+            } else {
+                if (currentTool === 'zoom') {
+                    const img = getImageAt(pos.x, pos.y);
+                    canvas.style.cursor = img ? 'zoom-in' : 'default';
                 } else {
-                    canvas.style.cursor = 'default';
+                    const img = getImageAt(pos.x, pos.y);
+                    if (img) {
+                        const handle = getHandleAt(img, pos.x, pos.y);
+                        if (handle) {
+                            canvas.style.cursor = getCursorForHandle(handle);
+                        } else {
+                            canvas.style.cursor = 'move';
+                        }
+                    } else {
+                        canvas.style.cursor = 'default';
+                    }
                 }
             }
         });
 
         canvas.addEventListener('mouseup', () => {
             mode = 'none';
+            if (currentTool === 'zoom') {
+                canvas.style.cursor = 'default';
+            }
         });
 
         canvas.addEventListener('wheel', (e) => {
@@ -337,6 +434,7 @@
 
         // Inicializar
         setView('pc');
+        selectTool('modificador');
     </script>
 </body>
 </html>
