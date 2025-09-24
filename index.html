@@ -5,314 +5,338 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Editor de Menús para Juegos - Generador de JSON</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f0f0f0;
-            display: flex;
-            height: 100vh;
-            box-sizing: border-box;
+        body { font-family: Arial, sans-serif; margin: 0; padding: 10px; }
+        #container { display: flex; height: 100vh; }
+        #canvasContainer { 
+            border: 1px solid black; 
+            overflow: auto; 
+            flex: 1; 
+            max-width: calc(100vw - 320px);
         }
-        #preview-panel {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 20px;
-            background-color: white;
-            border-right: 1px solid #ccc;
+        #canvas { 
+            display: block; 
+            border: 1px solid gray; 
+            cursor: default;
         }
-        #preview-container {
-            position: relative;
-            border: 2px solid #333;
-            overflow: hidden;
-            margin-bottom: 10px;
-        }
-        #preview {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            background-color: #000; /* Fondo negro para simular pantalla */
-        }
-        .frame {
-            position: absolute;
-            border: 1px dashed #ff0000;
-            background-size: cover;
-            background-position: center;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-            text-shadow: 1px 1px 2px black;
-        }
-        #view-toggle {
-            padding: 10px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            cursor: pointer;
-            margin-bottom: 10px;
-        }
-        #view-toggle:hover {
-            background-color: #0056b3;
-        }
-        #controls-panel {
-            flex: 0 0 400px;
-            padding: 20px;
-            background-color: white;
+        #controls { 
+            width: 300px; 
+            padding: 10px; 
             overflow-y: auto;
+            background: #f5f5f5;
         }
-        input, button {
-            margin: 5px 0;
-            padding: 8px;
-            width: 100%;
-            box-sizing: border-box;
-        }
-        button {
-            background-color: #28a745;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #218838;
-        }
-        .delete-btn {
-            background-color: #dc3545;
-            width: auto;
-            padding: 5px 10px;
-        }
-        .delete-btn:hover {
-            background-color: #c82333;
-        }
-        .frame-section {
-            border: 1px solid #ddd;
-            padding: 10px;
-            margin: 10px 0;
-            background-color: #f9f9f9;
-        }
-        #download-btn {
-            background-color: #17a2b8;
-            margin-top: 20px;
-        }
-        #download-btn:hover {
-            background-color: #138496;
-        }
-        h2, h3 {
-            margin-top: 0;
-        }
+        .viewBtn { margin: 5px 0; padding: 5px 10px; }
+        #urlInput { width: 100%; margin-bottom: 5px; padding: 5px; }
+        button { margin: 2px; padding: 5px; }
+        #imageList div { margin-bottom: 10px; border: 1px solid #ddd; padding: 5px; }
+        #imageList input { width: 150px; margin-right: 5px; }
     </style>
 </head>
 <body>
-    <div id="preview-panel">
-        <button id="view-toggle">Cambiar a Vista Móvil</button>
-        <div id="preview-container">
-            <div id="preview"></div>
+    <div id="container">
+        <div id="canvasContainer">
+            <canvas id="canvas"></canvas>
         </div>
-    </div>
-    <div id="controls-panel">
-        <h2>Editor de Menús</h2>
-        <label>Nombre del Menú:</label>
-        <input type="text" id="menu-name" placeholder="Ej: Menú Principal" value="Menú Principal">
-
-        <h3>Agregar Cuadro</h3>
-        <label>Nombre del Cuadro:</label>
-        <input type="text" id="frame-name" placeholder="Ej: Cuadro 1">
-        <label>Posición X (%):</label>
-        <input type="number" id="frame-x" min="0" max="100" value="0">
-        <label>Posición Y (%):</label>
-        <input type="number" id="frame-y" min="0" max="100" value="0">
-        <label>Ancho (%):</label>
-        <input type="number" id="frame-width" min="1" max="100" value="50">
-        <label>Alto (%):</label>
-        <input type="number" id="frame-height" min="1" max="100" value="50">
-        <label>Imagen (URL o archivo):</label>
-        <input type="file" id="frame-image" accept="image/*">
-        <button id="add-frame">Agregar Cuadro</button>
-
-        <h3>Cuadros Existentes</h3>
-        <div id="frames-list"></div>
-
-        <button id="download-btn">Generar y Descargar JSON</button>
+        <div id="controls">
+            <h3>Vista</h3>
+            <button class="viewBtn" onclick="setView('pc')">PC Horizontal (1920x1080)</button>
+            <button class="viewBtn" onclick="setView('mobileH')">Móvil Horizontal (800x480)</button>
+            <button class="viewBtn" onclick="setView('mobileV')">Móvil Vertical (480x800)</button>
+            
+            <h3>Añadir Imagen</h3>
+            <input type="text" id="urlInput" placeholder="Colocar URL de la imagen (GIF, PNG, etc.)">
+            <button onclick="loadImage()">Cargar Imagen</button>
+            
+            <h3>Cuadros</h3>
+            <div id="imageList"></div>
+            
+            <button onclick="saveJSON()" style="margin-top: 20px; width: 100%;">Guardar JSON</button>
+        </div>
     </div>
 
     <script>
-        let frames = []; // Array de objetos {nombre, x, y, ancho, alto, url}
-        let isMobileView = false;
-        const preview = document.getElementById('preview');
-        const previewContainer = document.getElementById('preview-container');
-        const framesList = document.getElementById('frames-list');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let images = [];
+        let currentView = 'pc';
+        let zoom = 1;
+        let selectedImage = null;
+        let mode = 'none';
+        let startX, startY;
+        let logicalW, logicalH;
 
-        // Configuraciones de vista
         const views = {
-            pc: { width: '800px', height: '600px' }, // Aproximado PC
-            mobile: { width: '375px', height: '667px' } // Aproximado Mobile
+            'pc': { w: 1920, h: 1080 },
+            'mobileH': { w: 800, h: 480 },
+            'mobileV': { w: 480, h: 800 }
         };
 
-        function updatePreview() {
-            preview.innerHTML = '';
-            frames.forEach((frame, index) => {
-                const div = document.createElement('div');
-                div.className = 'frame';
-                div.style.left = frame.x + '%';
-                div.style.top = frame.y + '%';
-                div.style.width = frame.ancho + '%';
-                div.style.height = frame.alto + '%';
-                if (frame.url) {
-                    div.style.backgroundImage = `url(${frame.url})`;
+        function setView(viewName) {
+            currentView = viewName;
+            zoom = 1;
+            updateCanvasSize();
+            updateList();
+        }
+
+        function updateCanvasSize() {
+            logicalW = views[currentView].w;
+            logicalH = views[currentView].h;
+            const displayW = logicalW * zoom;
+            const displayH = logicalH * zoom;
+            canvas.width = displayW;
+            canvas.height = displayH;
+            canvas.style.width = displayW + 'px';
+            canvas.style.height = displayH + 'px';
+            draw();
+        }
+
+        function getMousePos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scale = zoom;
+            return {
+                x: (e.clientX - rect.left) / scale,
+                y: (e.clientY - rect.top) / scale
+            };
+        }
+
+        function getLogicalPosFromPercent(percentX, percentY) {
+            return {
+                x: (percentX / 100) * logicalW,
+                y: (percentY / 100) * logicalH
+            };
+        }
+
+        function getImageAt(mx, my) {
+            for (let i = images.length - 1; i >= 0; i--) {
+                const img = images[i];
+                if (!img.img || !img.img.complete) continue;
+                const { x: left, y: top } = getLogicalPosFromPercent(img.x, img.y);
+                const right = left + (img.ancho / 100) * logicalW;
+                const bottom = top + (img.alto / 100) * logicalH;
+                if (mx >= left && mx <= right && my >= top && bottom >= my) {
+                    return img;
                 }
-                div.textContent = frame.nombre;
-                div.title = frame.nombre;
-                div.onclick = () => selectFrame(index);
-                preview.appendChild(div);
-            });
-        }
-
-        function selectFrame(index) {
-            // Aquí podrías agregar lógica para editar el cuadro seleccionado, pero por simplicidad, solo actualiza preview
-            updateFrameInputs(index);
-        }
-
-        function updateFrameInputs(index) {
-            const frame = frames[index];
-            if (frame) {
-                document.getElementById('frame-name').value = frame.nombre;
-                document.getElementById('frame-x').value = frame.x;
-                document.getElementById('frame-y').value = frame.y;
-                document.getElementById('frame-width').value = frame.ancho;
-                document.getElementById('frame-height').value = frame.alto;
-                // Para imagen, no actualizamos input file, ya que es read-only
             }
+            return null;
         }
 
-        function renderFramesList() {
-            framesList.innerHTML = '';
-            frames.forEach((frame, index) => {
-                const section = document.createElement('div');
-                section.className = 'frame-section';
-                section.innerHTML = `
-                    <h4>${frame.nombre}</h4>
-                    <label>X: <input type="number" value="${frame.x}" onchange="updateFrame(${index}, 'x', this.value)"></label>
-                    <label>Y: <input type="number" value="${frame.y}" onchange="updateFrame(${index}, 'y', this.value)"></label>
-                    <label>Ancho: <input type="number" value="${frame.ancho}" onchange="updateFrame(${index}, 'ancho', this.value)"></label>
-                    <label>Alto: <input type="number" value="${frame.alto}" onchange="updateFrame(${index}, 'alto', this.value)"></label>
-                    <label>URL: <input type="text" value="${frame.url}" style="width: 70%;" onchange="updateFrame(${index}, 'url', this.value)"></label>
-                    <input type="file" accept="image/*" onchange="updateFrameImage(${index}, this.files[0])">
-                    <button class="delete-btn" onclick="deleteFrame(${index})">Eliminar</button>
-                `;
-                framesList.appendChild(section);
-            });
+        function getHandleAt(img, mx, my) {
+            const handleScreenSize = 10;
+            const logicalHandleSize = handleScreenSize / zoom;
+            const half = logicalHandleSize / 2;
+            const { x: left, y: top } = getLogicalPosFromPercent(img.x, img.y);
+            const right = left + (img.ancho / 100) * logicalW;
+            const bottom = top + (img.alto / 100) * logicalH;
+
+            // NW
+            if (mx >= left - half && mx <= left + half && my >= top - half && my <= top + half) return 'nw';
+            // NE
+            if (mx >= right - half && mx <= right + half && my >= top - half && my <= top + half) return 'ne';
+            // SW
+            if (mx >= left - half && mx <= left + half && my >= bottom - half && my <= bottom + half) return 'sw';
+            // SE
+            if (mx >= right - half && mx <= right + half && my >= bottom - half && my <= bottom + half) return 'se';
+            return null;
         }
 
-        function updateFrame(index, prop, value) {
-            frames[index][prop] = parseFloat(value);
-            updatePreview();
+        function getCursorForHandle(handle) {
+            return (handle === 'nw' || handle === 'se') ? 'nwse-resize' : 'nesw-resize';
         }
 
-        function updateFrameImage(index, file) {
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    frames[index].url = e.target.result;
-                    updatePreview();
-                };
-                reader.readAsDataURL(file);
+        canvas.addEventListener('mousedown', (e) => {
+            const pos = getMousePos(e);
+            selectedImage = getImageAt(pos.x, pos.y);
+            if (!selectedImage) {
+                mode = 'none';
+                draw();
+                return;
             }
-        }
+            const handle = getHandleAt(selectedImage, pos.x, pos.y);
+            mode = handle || 'drag';
+            startX = pos.x;
+            startY = pos.y;
+        });
 
-        function deleteFrame(index) {
-            frames.splice(index, 1);
-            renderFramesList();
-            updatePreview();
-        }
+        canvas.addEventListener('mousemove', (e) => {
+            const pos = getMousePos(e);
+            if (mode !== 'none') {
+                const dx = pos.x - startX;
+                const dy = pos.y - startY;
+                const { x: origLeft, y: origTop } = getLogicalPosFromPercent(selectedImage.x, selectedImage.y);
+                const origRight = origLeft + (selectedImage.ancho / 100) * logicalW;
+                const origBottom = origTop + (selectedImage.alto / 100) * logicalH;
 
-        function addFrame() {
-            const name = document.getElementById('frame-name').value || 'Cuadro Nuevo';
-            const x = parseFloat(document.getElementById('frame-x').value) || 0;
-            const y = parseFloat(document.getElementById('frame-y').value) || 0;
-            const ancho = parseFloat(document.getElementById('frame-width').value) || 50;
-            const alto = parseFloat(document.getElementById('frame-height').value) || 50;
-            const file = document.getElementById('frame-image').files[0];
-            let url = '';
-
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    url = e.target.result;
-                    frames.push({nombre: name, x, y, ancho, alto, url});
-                    renderFramesList();
-                    updatePreview();
-                    // Reset form
-                    document.getElementById('frame-name').value = '';
-                    document.getElementById('frame-x').value = 0;
-                    document.getElementById('frame-y').value = 0;
-                    document.getElementById('frame-width').value = 50;
-                    document.getElementById('frame-height').value = 50;
-                    document.getElementById('frame-image').value = '';
-                };
-                reader.readAsDataURL(file);
+                if (mode === 'drag') {
+                    selectedImage.x = Math.max(0, Math.min(100, ((origLeft + dx) / logicalW) * 100));
+                    selectedImage.y = Math.max(0, Math.min(100, ((origTop + dy) / logicalH) * 100));
+                } else if (mode === 'nw') {
+                    const newLeft = origLeft + dx;
+                    const newTop = origTop + dy;
+                    selectedImage.x = Math.max(0, (newLeft / logicalW) * 100);
+                    selectedImage.y = Math.max(0, (newTop / logicalH) * 100);
+                    selectedImage.ancho = Math.max(1, Math.min(100 - selectedImage.x, ((origRight - newLeft) / logicalW) * 100));
+                    selectedImage.alto = Math.max(1, Math.min(100 - selectedImage.y, ((origBottom - newTop) / logicalH) * 100));
+                } else if (mode === 'ne') {
+                    const newRight = origRight + dx;
+                    const newTop = origTop + dy;
+                    selectedImage.y = Math.max(0, (newTop / logicalH) * 100);
+                    selectedImage.ancho = Math.max(1, Math.min(100 - selectedImage.x, ((newRight - origLeft) / logicalW) * 100));
+                    selectedImage.alto = Math.max(1, Math.min(100 - selectedImage.y, ((origBottom - newTop) / logicalH) * 100));
+                } else if (mode === 'sw') {
+                    const newLeft = origLeft + dx;
+                    const newBottom = origBottom + dy;
+                    selectedImage.x = Math.max(0, (newLeft / logicalW) * 100);
+                    selectedImage.ancho = Math.max(1, Math.min(100 - selectedImage.x, ((origRight - newLeft) / logicalW) * 100));
+                    selectedImage.alto = Math.max(1, Math.min(100 - selectedImage.y, ((newBottom - origTop) / logicalH) * 100));
+                } else if (mode === 'se') {
+                    const newRight = origRight + dx;
+                    const newBottom = origBottom + dy;
+                    selectedImage.ancho = Math.max(1, Math.min(100 - selectedImage.x, ((newRight - origLeft) / logicalW) * 100));
+                    selectedImage.alto = Math.max(1, Math.min(100 - selectedImage.y, ((newBottom - origTop) / logicalH) * 100));
+                }
+                startX = pos.x;
+                startY = pos.y;
+                draw();
             } else {
-                frames.push({nombre: name, x, y, ancho, alto, url: ''});
-                renderFramesList();
-                updatePreview();
-                // Reset form
-                document.getElementById('frame-name').value = '';
-                document.getElementById('frame-x').value = 0;
-                document.getElementById('frame-y').value = 0;
-                document.getElementById('frame-width').value = 50;
-                document.getElementById('frame-height').value = 50;
-                document.getElementById('frame-image').value = '';
+                const img = getImageAt(pos.x, pos.y);
+                if (img) {
+                    const handle = getHandleAt(img, pos.x, pos.y);
+                    if (handle) {
+                        canvas.style.cursor = getCursorForHandle(handle);
+                    } else {
+                        canvas.style.cursor = 'move';
+                    }
+                } else {
+                    canvas.style.cursor = 'default';
+                }
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            mode = 'none';
+        });
+
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const pos = getMousePos(e);
+            const img = getImageAt(pos.x, pos.y);
+            if (!img) return;
+            const delta = e.deltaY > 0 ? -0.1 : 0.1;
+            zoom = Math.max(0.5, Math.min(3, zoom + delta));
+            updateCanvasSize();
+        });
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            images.forEach(img => {
+                if (!img.img || !img.img.complete) return;
+                const px = (img.x / 100) * logicalW * zoom;
+                const py = (img.y / 100) * logicalH * zoom;
+                const pw = (img.ancho / 100) * logicalW * zoom;
+                const ph = (img.alto / 100) * logicalH * zoom;
+                ctx.drawImage(img.img, px, py, pw, ph);
+            });
+            if (selectedImage) {
+                const px = (selectedImage.x / 100) * logicalW * zoom;
+                const py = (selectedImage.y / 100) * logicalH * zoom;
+                const pw = (selectedImage.ancho / 100) * logicalW * zoom;
+                const ph = (selectedImage.alto / 100) * logicalH * zoom;
+                ctx.strokeStyle = 'blue';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(px, py, pw, ph);
+                const hs = 10;
+                ctx.fillStyle = 'red';
+                ctx.fillRect(px - hs / 2, py - hs / 2, hs, hs); // NW
+                ctx.fillRect(px + pw - hs / 2, py - hs / 2, hs, hs); // NE
+                ctx.fillRect(px - hs / 2, py + ph - hs / 2, hs, hs); // SW
+                ctx.fillRect(px + pw - hs / 2, py + ph - hs / 2, hs, hs); // SE
             }
         }
 
-        function toggleView() {
-            isMobileView = !isMobileView;
-            const view = isMobileView ? views.mobile : views.pc;
-            previewContainer.style.width = view.width;
-            previewContainer.style.height = view.height;
-            document.getElementById('view-toggle').textContent = isMobileView ? 'Cambiar a Vista PC' : 'Cambiar a Vista Móvil';
-            updatePreview(); // Re-render para escalado
+        function loadImage() {
+            const url = document.getElementById('urlInput').value.trim();
+            if (!url) return;
+            const newImgData = {
+                name: `cuadro ${images.length + 1}`,
+                x: 40,
+                y: 40,
+                ancho: 20,
+                alto: 20,
+                url: url,
+                img: new Image()
+            };
+            newImgData.img.crossOrigin = 'anonymous';
+            newImgData.img.onload = () => {
+                draw();
+                updateList();
+            };
+            newImgData.img.onerror = () => {
+                alert('Error al cargar la imagen. Verifica la URL.');
+            };
+            newImgData.img.src = url;
+            images.push(newImgData);
+            selectedImage = newImgData;
+            document.getElementById('urlInput').value = '';
+            draw();
+            updateList();
         }
 
-        function generateJSON() {
-            const nombre = document.getElementById('menu-name').value || 'Menú Sin Nombre';
-            const json = {
-                nombre: nombre,
-                cuadros: frames.map(f => ({
-                    nombre: f.nombre,
-                    x: f.x,
-                    y: f.y,
-                    alto: f.alto,
-                    ancho: f.ancho,
-                    url: f.url
+        function updateList() {
+            const list = document.getElementById('imageList');
+            list.innerHTML = '';
+            images.forEach((img, idx) => {
+                const div = document.createElement('div');
+                const inp = document.createElement('input');
+                inp.type = 'text';
+                inp.value = img.name;
+                inp.onchange = () => {
+                    img.name = inp.value;
+                    draw();
+                };
+                const selBtn = document.createElement('button');
+                selBtn.textContent = 'Seleccionar';
+                selBtn.onclick = () => {
+                    selectedImage = img;
+                    draw();
+                };
+                const delBtn = document.createElement('button');
+                delBtn.textContent = 'Eliminar';
+                delBtn.onclick = () => {
+                    const i = images.indexOf(img);
+                    images.splice(i, 1);
+                    if (selectedImage === img) selectedImage = null;
+                    updateList();
+                    draw();
+                };
+                div.appendChild(inp);
+                div.appendChild(selBtn);
+                div.appendChild(delBtn);
+                list.appendChild(div);
+            });
+        }
+
+        function saveJSON() {
+            const menuName = prompt('Nombre del menú:') || 'menu_default';
+            const jsonData = {
+                nombre: menuName,
+                cuadros: images.map(img => ({
+                    nombre: img.name,
+                    x: img.x,
+                    y: img.y,
+                    alto: img.alto,
+                    ancho: img.ancho,
+                    url: img.url
                 }))
             };
-            return JSON.stringify(json, null, 2);
-        }
-
-        function downloadJSON() {
-            const json = generateJSON();
-            const blob = new Blob([json], {type: 'application/json'});
-            const url = URL.createObjectURL(blob);
+            const jsonStr = JSON.stringify(jsonData, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
             const a = document.createElement('a');
-            a.href = url;
-            a.download = `${document.getElementById('menu-name').value || 'menu'}.json`;
+            a.href = URL.createObjectURL(blob);
+            a.download = `${menuName}.json`;
             a.click();
-            URL.revokeObjectURL(url);
         }
-
-        // Event listeners
-        document.getElementById('add-frame').addEventListener('click', addFrame);
-        document.getElementById('view-toggle').addEventListener('click', toggleView);
-        document.getElementById('download-btn').addEventListener('click', downloadJSON);
 
         // Inicializar
-        toggleView(); // Set initial PC view
-        renderFramesList();
-        updatePreview();
+        setView('pc');
     </script>
 </body>
 </html>
