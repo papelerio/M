@@ -5,34 +5,125 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Editor de Menús para Juegos - Generador de JSON</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 10px; }
-        #container { display: flex; height: 100vh; }
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 10px; 
+            background-color: #f0f0f0;
+        }
+        #container { 
+            display: flex; 
+            height: 100vh; 
+            gap: 10px;
+        }
         #canvasContainer { 
-            border: 1px solid black; 
+            border: 1px solid #333; 
             overflow: auto; 
             flex: 1; 
             max-width: calc(100vw - 320px);
+            background-color: #fff;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 4px;
         }
         #canvas { 
             display: block; 
-            border: 1px solid gray; 
+            border: 1px solid #ddd; 
             cursor: default;
+            background-color: #f9f9f9;
         }
         #controls { 
             width: 300px; 
-            padding: 10px; 
+            padding: 15px; 
             overflow-y: auto;
-            background: #f5f5f5;
+            background: #fff;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
-        .viewBtn { margin: 5px 0; padding: 5px 10px; }
-        #urlInput { width: 100%; margin-bottom: 5px; padding: 5px; }
-        button { margin: 2px; padding: 5px; }
-        #imageList div { margin-bottom: 10px; border: 1px solid #ddd; padding: 5px; }
-        #imageList input { width: 150px; margin-right: 5px; }
-        .toolBtn { width: 100%; margin: 5px 0; }
-        input[type="radio"] { margin-right: 5px; }
-        #fileInput { display: none; }
-        .actionBtn { width: 100%; margin: 5px 0; }
+        .viewBtn { 
+            margin: 5px 0; 
+            padding: 8px 12px; 
+            width: 100%;
+            background-color: #4a6fa5;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .viewBtn:hover {
+            background-color: #3a5a8a;
+        }
+        #urlInput { 
+            width: 100%; 
+            margin-bottom: 5px; 
+            padding: 8px; 
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button { 
+            margin: 2px; 
+            padding: 8px; 
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        #imageList div { 
+            margin-bottom: 10px; 
+            border: 1px solid #ddd; 
+            padding: 8px; 
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+        #imageList input { 
+            width: 150px; 
+            margin-right: 5px; 
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .toolBtn { 
+            width: 100%; 
+            margin: 5px 0; 
+        }
+        input[type="radio"] { 
+            margin-right: 5px; 
+        }
+        #fileInput { 
+            display: none; 
+        }
+        .actionBtn { 
+            width: 100%; 
+            margin: 5px 0; 
+            padding: 10px;
+            background-color: #5cb85c;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .actionBtn:hover {
+            background-color: #4cae4c;
+        }
+        .gif-indicator {
+            display: inline-block;
+            background-color: #5cb85c;
+            color: white;
+            font-size: 10px;
+            padding: 2px 5px;
+            border-radius: 3px;
+            margin-left: 5px;
+        }
+        h3 {
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        .selected {
+            background-color: #e6f3ff;
+            border-color: #4a90e2;
+        }
     </style>
 </head>
 <body>
@@ -52,9 +143,9 @@
             
             <h3>Añadir Imagen</h3>
             <input type="text" id="urlInput" placeholder="Colocar URL de la imagen (GIF, PNG, etc.)">
-            <button onclick="loadImage()">Cargar Imagen</button>
+            <button onclick="loadImage()" style="width: 100%;">Cargar Imagen</button>
             
-            <h3>Cuadros</h3>
+            <h3>Cuadros <span id="imageCount">(0)</span></h3>
             <div id="imageList"></div>
             
             <button onclick="saveJSON()" class="actionBtn">Guardar JSON</button>
@@ -75,6 +166,7 @@
         let startX, startY;
         let logicalW, logicalH;
         let pivotRelX, pivotRelY, initialDist;
+        let animationFrameId = null;
 
         const views = {
             'pc': { w: 1920, h: 1080 },
@@ -322,35 +414,55 @@
         });
 
         function draw() {
+            // Cancelar el frame de animación anterior si existe
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Dibujar todas las imágenes
             images.forEach(img => {
                 if (!img.img || !img.img.complete) return;
+                
                 const px = (img.x / 100) * logicalW * zoom;
                 const py = (img.y / 100) * logicalH * zoom;
                 const pw = (img.ancho / 100) * logicalW * zoom;
                 const ph = (img.alto / 100) * logicalH * zoom;
+                
                 ctx.drawImage(img.img, px, py, pw, ph);
             });
+            
+            // Dibujar bordes y controles para la imagen seleccionada
             if (selectedImage) {
                 const px = (selectedImage.x / 100) * logicalW * zoom;
                 const py = (selectedImage.y / 100) * logicalH * zoom;
                 const pw = (selectedImage.ancho / 100) * logicalW * zoom;
                 const ph = (selectedImage.alto / 100) * logicalH * zoom;
-                ctx.strokeStyle = 'blue';
+                
+                ctx.strokeStyle = '#4a90e2';
                 ctx.lineWidth = 2;
                 ctx.strokeRect(px, py, pw, ph);
+                
                 const hs = 10;
-                ctx.fillStyle = 'red';
+                ctx.fillStyle = '#e74c3c';
                 ctx.fillRect(px - hs / 2, py - hs / 2, hs, hs);
                 ctx.fillRect(px + pw - hs / 2, py - hs / 2, hs, hs);
                 ctx.fillRect(px - hs / 2, py + ph - hs / 2, hs, hs);
                 ctx.fillRect(px + pw - hs / 2, py + ph - hs / 2, hs, hs);
             }
+            
+            // Programar el siguiente frame para animaciones
+            animationFrameId = requestAnimationFrame(draw);
         }
 
         function loadImage() {
             const url = document.getElementById('urlInput').value.trim();
-            if (!url) return;
+            if (!url) {
+                alert('Por favor, introduce una URL válida');
+                return;
+            }
+            
             const newImgData = {
                 name: `cuadro ${images.length + 1}`,
                 x: 40,
@@ -358,15 +470,23 @@
                 ancho: 20,
                 alto: 20,
                 url: url,
-                img: new Image()
+                img: new Image(),
+                isGif: url.toLowerCase().endsWith('.gif')
             };
+            
             newImgData.img.crossOrigin = 'anonymous';
             newImgData.img.onload = () => {
                 draw();
                 updateList();
             };
             newImgData.img.onerror = () => {
-                alert('Error al cargar la imagen. Verifica la URL.');
+                alert('Error al cargar la imagen. Verifica la URL y que no tenga restricciones CORS.');
+                // Eliminar la imagen de la lista si falla la carga
+                const index = images.indexOf(newImgData);
+                if (index > -1) {
+                    images.splice(index, 1);
+                    updateList();
+                }
             };
             newImgData.img.src = url;
             images.push(newImgData);
@@ -379,6 +499,7 @@
         function importJSON(event) {
             const file = event.target.files[0];
             if (!file) return;
+            
             const reader = new FileReader();
             reader.onload = (e) => {
                 try {
@@ -386,8 +507,18 @@
                     if (!jsonData.nombre || !jsonData.cuadros || !Array.isArray(jsonData.cuadros)) {
                         throw new Error('Formato JSON inválido');
                     }
+                    
+                    // Limpiar imágenes anteriores
+                    images.forEach(img => {
+                        if (img.img) {
+                            img.img.src = ''; // Liberar recursos
+                        }
+                    });
+                    
                     images = [];
                     selectedImage = null;
+                    
+                    // Cargar nuevas imágenes
                     jsonData.cuadros.forEach(cuadro => {
                         const imgData = {
                             name: cuadro.nombre || `cuadro ${images.length + 1}`,
@@ -396,8 +527,10 @@
                             ancho: cuadro.ancho || 20,
                             alto: cuadro.alto || 20,
                             url: cuadro.url || '',
-                            img: new Image()
+                            img: new Image(),
+                            isGif: (cuadro.url || '').toLowerCase().endsWith('.gif')
                         };
+                        
                         imgData.img.crossOrigin = 'anonymous';
                         imgData.img.onload = () => {
                             draw();
@@ -409,6 +542,7 @@
                         imgData.img.src = imgData.url;
                         images.push(imgData);
                     });
+                    
                     draw();
                     updateList();
                 } catch (error) {
@@ -421,9 +555,15 @@
 
         function updateList() {
             const list = document.getElementById('imageList');
+            const countElement = document.getElementById('imageCount');
             list.innerHTML = '';
+            
             images.forEach((img, idx) => {
                 const div = document.createElement('div');
+                if (img === selectedImage) {
+                    div.classList.add('selected');
+                }
+                
                 const inp = document.createElement('input');
                 inp.type = 'text';
                 inp.value = img.name;
@@ -431,29 +571,51 @@
                     img.name = inp.value;
                     draw();
                 };
+                
                 const selBtn = document.createElement('button');
                 selBtn.textContent = 'Seleccionar';
                 selBtn.onclick = () => {
                     selectedImage = img;
+                    updateList();
                     draw();
                 };
+                
                 const delBtn = document.createElement('button');
                 delBtn.textContent = 'Eliminar';
                 delBtn.onclick = () => {
+                    // Liberar recursos de la imagen
+                    if (img.img) {
+                        img.img.src = '';
+                    }
+                    
                     const i = images.indexOf(img);
                     images.splice(i, 1);
                     if (selectedImage === img) selectedImage = null;
                     updateList();
                     draw();
                 };
+                
                 div.appendChild(inp);
+                if (img.isGif) {
+                    const gifIndicator = document.createElement('span');
+                    gifIndicator.textContent = 'GIF';
+                    gifIndicator.classList.add('gif-indicator');
+                    div.appendChild(gifIndicator);
+                }
                 div.appendChild(selBtn);
                 div.appendChild(delBtn);
                 list.appendChild(div);
             });
+            
+            countElement.textContent = `(${images.length})`;
         }
 
         function saveJSON() {
+            if (images.length === 0) {
+                alert('No hay imágenes para guardar');
+                return;
+            }
+            
             const menuName = prompt('Nombre del menú:') || 'menu_default';
             const jsonData = {
                 nombre: menuName,
@@ -466,6 +628,7 @@
                     url: img.url
                 }))
             };
+            
             const jsonStr = JSON.stringify(jsonData, null, 2);
             const blob = new Blob([jsonStr], { type: 'application/json' });
             const a = document.createElement('a');
@@ -477,6 +640,13 @@
         // Inicializar
         setView('pc');
         selectTool('modificador');
+        
+        // Limpiar recursos al cerrar la página
+        window.addEventListener('beforeunload', () => {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+        });
     </script>
 </body>
 </html>
