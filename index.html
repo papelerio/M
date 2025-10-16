@@ -9,7 +9,7 @@
             font-family: Arial, sans-serif; 
             margin: 0; 
             padding: 10px; 
-            background-color: #f0f0f0;
+            background-color: #000; /* Fondo negro detrás del lienzo */
         }
         #container { 
             display: flex; 
@@ -21,8 +21,8 @@
             overflow: auto; 
             flex: 1; 
             max-width: calc(100vw - 320px);
-            background-color: #fff;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            background-color: #fff; /* Lienzo blanco */
+            box-shadow: 0 2px 10px rgba(255,255,255,0.1);
             border-radius: 4px;
         }
         #canvas { 
@@ -37,7 +37,7 @@
             overflow-y: auto;
             background: #fff;
             border-radius: 4px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(255,255,255,0.1);
         }
         .viewBtn { 
             margin: 5px 0; 
@@ -115,6 +115,24 @@
             border-radius: 3px;
             margin-left: 5px;
         }
+        .coordinate-indicator {
+            display: inline-block;
+            background-color: #e74c3c;
+            color: white;
+            font-size: 10px;
+            padding: 2px 5px;
+            border-radius: 3px;
+            margin-left: 5px;
+        }
+        .rectangle-indicator {
+            display: inline-block;
+            background-color: #f39c12;
+            color: white;
+            font-size: 10px;
+            padding: 2px 5px;
+            border-radius: 3px;
+            margin-left: 5px;
+        }
         h3 {
             color: #333;
             border-bottom: 1px solid #eee;
@@ -124,6 +142,11 @@
             background-color: #e6f3ff;
             border-color: #4a90e2;
         }
+        .section {
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
     </style>
 </head>
 <body>
@@ -132,21 +155,31 @@
             <canvas id="canvas"></canvas>
         </div>
         <div id="controls">
-            <h3>Vista</h3>
-            <button class="viewBtn" onclick="setView('pc')">PC Horizontal (1920x1080)</button>
-            <button class="viewBtn" onclick="setView('mobileH')">Móvil Horizontal (800x480)</button>
-            <button class="viewBtn" onclick="setView('mobileV')">Móvil Vertical (480x800)</button>
+            <div class="section">
+                <h3>Vista</h3>
+                <button class="viewBtn" onclick="setView('pc')">PC Horizontal (1920x1080)</button>
+                <button class="viewBtn" onclick="setView('mobileH')">Móvil Horizontal (800x480)</button>
+                <button class="viewBtn" onclick="setView('mobileV')">Móvil Vertical (480x800)</button>
+            </div>
             
-            <h3>Herramientas</h3>
-            <label><input type="radio" name="tool" value="modificador" checked onchange="selectTool('modificador')"> Modificador</label><br>
-            <label><input type="radio" name="tool" value="zoom" onchange="selectTool('zoom')"> Zoom de Imagen</label>
+            <div class="section">
+                <h3>Herramientas</h3>
+                <label><input type="radio" name="tool" value="modificador" checked onchange="selectTool('modificador')"> Modificador</label><br>
+                <label><input type="radio" name="tool" value="zoom" onchange="selectTool('zoom')"> Zoom de Imagen</label>
+            </div>
             
-            <h3>Añadir Imagen</h3>
-            <input type="text" id="urlInput" placeholder="Colocar URL de la imagen (GIF, PNG, etc.)">
-            <button onclick="loadImage()" style="width: 100%;">Cargar Imagen</button>
+            <div class="section">
+                <h3>Añadir Elementos</h3>
+                <input type="text" id="urlInput" placeholder="Colocar URL de la imagen (GIF, PNG, etc.)">
+                <button onclick="loadImage()" style="width: 100%; margin-bottom: 10px;">Cargar Imagen</button>
+                <button onclick="addRectangle()" style="width: 100%; background-color: #f39c12; color: white; margin-bottom: 5px;">Añadir Rectángulo</button>
+                <button onclick="addCoordinate()" style="width: 100%; background-color: #e74c3c; color: white;">Añadir Coordenada (X)</button>
+            </div>
             
-            <h3>Cuadros <span id="imageCount">(0)</span></h3>
-            <div id="imageList"></div>
+            <div class="section">
+                <h3>Elementos <span id="elementCount">(0)</span></h3>
+                <div id="elementList"></div>
+            </div>
             
             <button onclick="saveJSON()" class="actionBtn">Guardar JSON</button>
             <input type="file" id="fileInput" accept=".json" onchange="importJSON(event)">
@@ -157,10 +190,10 @@
     <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        let images = [];
+        let elements = []; // Ahora contiene tanto imágenes como coordenadas y rectángulos
         let currentView = 'pc';
         let zoom = 1;
-        let selectedImage = null;
+        let selectedElement = null;
         let currentTool = 'modificador';
         let mode = 'none';
         let startX, startY;
@@ -216,29 +249,45 @@
             };
         }
 
-        function getImageAt(mx, my) {
-            for (let i = images.length - 1; i >= 0; i--) {
-                const img = images[i];
-                if (!img.img || !img.img.complete) continue;
-                const { x: left, y: top } = getLogicalPosFromPercent(img.x, img.y);
-                const width = (img.ancho / 100) * logicalW;
-                const height = (img.alto / 100) * logicalH;
-                const right = left + width;
-                const bottom = top + height;
-                if (mx >= left && mx <= right && my >= top && bottom >= my) {
-                    return img;
+        function getElementAt(mx, my) {
+            for (let i = elements.length - 1; i >= 0; i--) {
+                const element = elements[i];
+                
+                // Para coordenadas, verificamos si estamos cerca del punto
+                if (element.type === 'coordinate') {
+                    const { x: left, y: top } = getLogicalPosFromPercent(element.x, element.y);
+                    const tolerance = 10; // Radio de tolerancia para seleccionar coordenadas
+                    const distance = Math.sqrt((mx - left)**2 + (my - top)**2);
+                    if (distance <= tolerance) {
+                        return element;
+                    }
+                } 
+                // Para imágenes y rectángulos, verificamos si estamos dentro del rectángulo
+                else if (element.type === 'image' || element.type === 'rectangle') {
+                    if (element.type === 'image' && (!element.img || !element.img.complete)) continue;
+                    const { x: left, y: top } = getLogicalPosFromPercent(element.x, element.y);
+                    const width = (element.ancho / 100) * logicalW;
+                    const height = (element.alto / 100) * logicalH;
+                    const right = left + width;
+                    const bottom = top + height;
+                    if (mx >= left && mx <= right && my >= top && bottom >= my) {
+                        return element;
+                    }
                 }
             }
             return null;
         }
 
-        function getHandleAt(img, mx, my) {
+        function getHandleAt(element, mx, my) {
+            // Las coordenadas no tienen handles de redimensionamiento
+            if (element.type === 'coordinate') return null;
+            
             const handleScreenSize = 10;
             const logicalHandleSize = handleScreenSize / zoom;
             const half = logicalHandleSize / 2;
-            const { x: left, y: top } = getLogicalPosFromPercent(img.x, img.y);
-            const width = (img.ancho / 100) * logicalW;
-            const height = (img.alto / 100) * logicalH;
+            const { x: left, y: top } = getLogicalPosFromPercent(element.x, element.y);
+            const width = (element.ancho / 100) * logicalW;
+            const height = (element.alto / 100) * logicalH;
             const right = left + width;
             const bottom = top + height;
 
@@ -256,12 +305,12 @@
         canvas.addEventListener('mousedown', (e) => {
             const pos = getMousePos(e);
             if (currentTool === 'zoom') {
-                selectedImage = getImageAt(pos.x, pos.y);
-                if (!selectedImage) return;
+                selectedElement = getElementAt(pos.x, pos.y);
+                if (!selectedElement || selectedElement.type === 'coordinate') return; // No aplicar zoom a coordenadas
                 mode = 'zoom';
-                const { x: left, y: top } = getLogicalPosFromPercent(selectedImage.x, selectedImage.y);
-                const width = (selectedImage.ancho / 100) * logicalW;
-                const height = (selectedImage.alto / 100) * logicalH;
+                const { x: left, y: top } = getLogicalPosFromPercent(selectedElement.x, selectedElement.y);
+                const width = (selectedElement.ancho / 100) * logicalW;
+                const height = (selectedElement.alto / 100) * logicalH;
                 pivotRelX = (pos.x - left) / width;
                 pivotRelY = (pos.y - top) / height;
                 startX = pos.x;
@@ -269,16 +318,26 @@
                 initialDist = Math.sqrt((pos.x - startX)**2 + (pos.y - startY)**2);
                 canvas.style.cursor = 'zoom-in';
             } else {
-                selectedImage = getImageAt(pos.x, pos.y);
-                if (!selectedImage) {
+                selectedElement = getElementAt(pos.x, pos.y);
+                if (!selectedElement) {
                     mode = 'none';
                     draw();
                     return;
                 }
-                const handle = getHandleAt(selectedImage, pos.x, pos.y);
-                mode = handle || 'drag';
-                startX = pos.x;
-                startY = pos.y;
+                
+                // Para coordenadas, solo permitir arrastrar
+                if (selectedElement.type === 'coordinate') {
+                    mode = 'drag';
+                    startX = pos.x;
+                    startY = pos.y;
+                } 
+                // Para imágenes y rectángulos, permitir arrastrar y redimensionar
+                else {
+                    const handle = getHandleAt(selectedElement, pos.x, pos.y);
+                    mode = handle || 'drag';
+                    startX = pos.x;
+                    startY = pos.y;
+                }
             }
         });
 
@@ -296,16 +355,16 @@
                         scale = 1 + (currentDist / 100);
                     }
                     if (scale < 0.1) scale = 0.1;
-                    const oldWidth = (selectedImage.ancho / 100) * logicalW;
-                    const oldHeight = (selectedImage.alto / 100) * logicalH;
+                    const oldWidth = (selectedElement.ancho / 100) * logicalW;
+                    const oldHeight = (selectedElement.alto / 100) * logicalH;
                     const newWidth = oldWidth * scale;
                     const newHeight = oldHeight * scale;
                     const newLeft = startX - pivotRelX * newWidth;
                     const newTop = startY - pivotRelY * newHeight;
-                    selectedImage.x = (newLeft / logicalW) * 100;
-                    selectedImage.y = (newTop / logicalH) * 100;
-                    selectedImage.ancho = (newWidth / logicalW) * 100;
-                    selectedImage.alto = (newHeight / logicalH) * 100;
+                    selectedElement.x = (newLeft / logicalW) * 100;
+                    selectedElement.y = (newTop / logicalH) * 100;
+                    selectedElement.ancho = (newWidth / logicalW) * 100;
+                    selectedElement.alto = (newHeight / logicalH) * 100;
                     startX = pos.x;
                     startY = pos.y;
                     initialDist = currentDist;
@@ -313,81 +372,85 @@
                 } else if (mode === 'drag') {
                     const dx = pos.x - startX;
                     const dy = pos.y - startY;
-                    const { x: origLeft, y: origTop } = getLogicalPosFromPercent(selectedImage.x, selectedImage.y);
-                    selectedImage.x = ((origLeft + dx) / logicalW) * 100;
-                    selectedImage.y = ((origTop + dy) / logicalH) * 100;
+                    const { x: origLeft, y: origTop } = getLogicalPosFromPercent(selectedElement.x, selectedElement.y);
+                    selectedElement.x = ((origLeft + dx) / logicalW) * 100;
+                    selectedElement.y = ((origTop + dy) / logicalH) * 100;
                     startX = pos.x;
                     startY = pos.y;
                     draw();
                 } else if (mode === 'nw') {
                     const dx = pos.x - startX;
                     const dy = pos.y - startY;
-                    const { x: origLeft, y: origTop } = getLogicalPosFromPercent(selectedImage.x, selectedImage.y);
-                    const origRight = origLeft + (selectedImage.ancho / 100) * logicalW;
-                    const origBottom = origTop + (selectedImage.alto / 100) * logicalH;
+                    const { x: origLeft, y: origTop } = getLogicalPosFromPercent(selectedElement.x, selectedElement.y);
+                    const origRight = origLeft + (selectedElement.ancho / 100) * logicalW;
+                    const origBottom = origTop + (selectedElement.alto / 100) * logicalH;
                     const newLeft = origLeft + dx;
                     const newTop = origTop + dy;
-                    selectedImage.x = (newLeft / logicalW) * 100;
-                    selectedImage.y = (newTop / logicalH) * 100;
-                    selectedImage.ancho = ((origRight - newLeft) / logicalW) * 100;
-                    selectedImage.alto = ((origBottom - newTop) / logicalH) * 100;
+                    selectedElement.x = (newLeft / logicalW) * 100;
+                    selectedElement.y = (newTop / logicalH) * 100;
+                    selectedElement.ancho = ((origRight - newLeft) / logicalW) * 100;
+                    selectedElement.alto = ((origBottom - newTop) / logicalH) * 100;
                     startX = pos.x;
                     startY = pos.y;
                     draw();
                 } else if (mode === 'ne') {
                     const dx = pos.x - startX;
                     const dy = pos.y - startY;
-                    const { x: origLeft, y: origTop } = getLogicalPosFromPercent(selectedImage.x, selectedImage.y);
-                    const origRight = origLeft + (selectedImage.ancho / 100) * logicalW;
-                    const origBottom = origTop + (selectedImage.alto / 100) * logicalH;
+                    const { x: origLeft, y: origTop } = getLogicalPosFromPercent(selectedElement.x, selectedElement.y);
+                    const origRight = origLeft + (selectedElement.ancho / 100) * logicalW;
+                    const origBottom = origTop + (selectedElement.alto / 100) * logicalH;
                     const newRight = origRight + dx;
                     const newTop = origTop + dy;
-                    selectedImage.y = (newTop / logicalH) * 100;
-                    selectedImage.ancho = ((newRight - origLeft) / logicalW) * 100;
-                    selectedImage.alto = ((origBottom - newTop) / logicalH) * 100;
+                    selectedElement.y = (newTop / logicalH) * 100;
+                    selectedElement.ancho = ((newRight - origLeft) / logicalW) * 100;
+                    selectedElement.alto = ((origBottom - newTop) / logicalH) * 100;
                     startX = pos.x;
                     startY = pos.y;
                     draw();
                 } else if (mode === 'sw') {
                     const dx = pos.x - startX;
                     const dy = pos.y - startY;
-                    const { x: origLeft, y: origTop } = getLogicalPosFromPercent(selectedImage.x, selectedImage.y);
-                    const origRight = origLeft + (selectedImage.ancho / 100) * logicalW;
-                    const origBottom = origTop + (selectedImage.alto / 100) * logicalH;
+                    const { x: origLeft, y: origTop } = getLogicalPosFromPercent(selectedElement.x, selectedElement.y);
+                    const origRight = origLeft + (selectedElement.ancho / 100) * logicalW;
+                    const origBottom = origTop + (selectedElement.alto / 100) * logicalH;
                     const newLeft = origLeft + dx;
                     const newBottom = origBottom + dy;
-                    selectedImage.x = (newLeft / logicalW) * 100;
-                    selectedImage.ancho = ((origRight - newLeft) / logicalW) * 100;
-                    selectedImage.alto = ((newBottom - origTop) / logicalH) * 100;
+                    selectedElement.x = (newLeft / logicalW) * 100;
+                    selectedElement.ancho = ((origRight - newLeft) / logicalW) * 100;
+                    selectedElement.alto = ((newBottom - origTop) / logicalH) * 100;
                     startX = pos.x;
                     startY = pos.y;
                     draw();
                 } else if (mode === 'se') {
                     const dx = pos.x - startX;
                     const dy = pos.y - startY;
-                    const { x: origLeft, y: origTop } = getLogicalPosFromPercent(selectedImage.x, selectedImage.y);
-                    const origRight = origLeft + (selectedImage.ancho / 100) * logicalW;
-                    const origBottom = origTop + (selectedImage.alto / 100) * logicalH;
+                    const { x: origLeft, y: origTop } = getLogicalPosFromPercent(selectedElement.x, selectedElement.y);
+                    const origRight = origLeft + (selectedElement.ancho / 100) * logicalW;
+                    const origBottom = origTop + (selectedElement.alto / 100) * logicalH;
                     const newRight = origRight + dx;
                     const newBottom = origBottom + dy;
-                    selectedImage.ancho = ((newRight - origLeft) / logicalW) * 100;
-                    selectedImage.alto = ((newBottom - origTop) / logicalH) * 100;
+                    selectedElement.ancho = ((newRight - origLeft) / logicalW) * 100;
+                    selectedElement.alto = ((newBottom - origTop) / logicalH) * 100;
                     startX = pos.x;
                     startY = pos.y;
                     draw();
                 }
             } else {
                 if (currentTool === 'zoom') {
-                    const img = getImageAt(pos.x, pos.y);
-                    canvas.style.cursor = img ? 'zoom-in' : 'default';
+                    const element = getElementAt(pos.x, pos.y);
+                    canvas.style.cursor = (element && element.type !== 'coordinate') ? 'zoom-in' : 'default';
                 } else {
-                    const img = getImageAt(pos.x, pos.y);
-                    if (img) {
-                        const handle = getHandleAt(img, pos.x, pos.y);
-                        if (handle) {
-                            canvas.style.cursor = getCursorForHandle(handle);
-                        } else {
+                    const element = getElementAt(pos.x, pos.y);
+                    if (element) {
+                        if (element.type === 'coordinate') {
                             canvas.style.cursor = 'move';
+                        } else {
+                            const handle = getHandleAt(element, pos.x, pos.y);
+                            if (handle) {
+                                canvas.style.cursor = getCursorForHandle(handle);
+                            } else {
+                                canvas.style.cursor = 'move';
+                            }
                         }
                     } else {
                         canvas.style.cursor = 'default';
@@ -406,8 +469,8 @@
         canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
             const pos = getMousePos(e);
-            const img = getImageAt(pos.x, pos.y);
-            if (!img) return;
+            const element = getElementAt(pos.x, pos.y);
+            if (!element || element.type === 'coordinate') return; // No aplicar zoom a coordenadas
             const delta = e.deltaY > 0 ? -0.1 : 0.1;
             zoom = Math.max(0.5, Math.min(3, zoom + delta));
             updateCanvasSize();
@@ -421,35 +484,77 @@
             
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Dibujar todas las imágenes
-            images.forEach(img => {
-                if (!img.img || !img.img.complete) return;
-                
-                const px = (img.x / 100) * logicalW * zoom;
-                const py = (img.y / 100) * logicalH * zoom;
-                const pw = (img.ancho / 100) * logicalW * zoom;
-                const ph = (img.alto / 100) * logicalH * zoom;
-                
-                ctx.drawImage(img.img, px, py, pw, ph);
+            // Dibujar todos los elementos
+            elements.forEach(element => {
+                if (element.type === 'image') {
+                    if (!element.img || !element.img.complete) return;
+                    
+                    const px = (element.x / 100) * logicalW * zoom;
+                    const py = (element.y / 100) * logicalH * zoom;
+                    const pw = (element.ancho / 100) * logicalW * zoom;
+                    const ph = (element.alto / 100) * logicalH * zoom;
+                    
+                    ctx.drawImage(element.img, px, py, pw, ph);
+                } else if (element.type === 'rectangle') {
+                    const px = (element.x / 100) * logicalW * zoom;
+                    const py = (element.y / 100) * logicalH * zoom;
+                    const pw = (element.ancho / 100) * logicalW * zoom;
+                    const ph = (element.alto / 100) * logicalH * zoom;
+                    
+                    // Dibujar rectángulo con color fijo (azul)
+                    ctx.fillStyle = '#3498db';
+                    ctx.fillRect(px, py, pw, ph);
+                } else if (element.type === 'coordinate') {
+                    const px = (element.x / 100) * logicalW * zoom;
+                    const py = (element.y / 100) * logicalH * zoom;
+                    
+                    // Dibujar un punto rojo para la coordenada
+                    ctx.fillStyle = '#e74c3c';
+                    ctx.beginPath();
+                    ctx.arc(px, py, 5 * zoom, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Dibujar una cruz
+                    ctx.strokeStyle = '#e74c3c';
+                    ctx.lineWidth = 2 * zoom;
+                    ctx.beginPath();
+                    ctx.moveTo(px - 8 * zoom, py);
+                    ctx.lineTo(px + 8 * zoom, py);
+                    ctx.moveTo(px, py - 8 * zoom);
+                    ctx.lineTo(px, py + 8 * zoom);
+                    ctx.stroke();
+                }
             });
             
-            // Dibujar bordes y controles para la imagen seleccionada
-            if (selectedImage) {
-                const px = (selectedImage.x / 100) * logicalW * zoom;
-                const py = (selectedImage.y / 100) * logicalH * zoom;
-                const pw = (selectedImage.ancho / 100) * logicalW * zoom;
-                const ph = (selectedImage.alto / 100) * logicalH * zoom;
-                
-                ctx.strokeStyle = '#4a90e2';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(px, py, pw, ph);
-                
-                const hs = 10;
-                ctx.fillStyle = '#e74c3c';
-                ctx.fillRect(px - hs / 2, py - hs / 2, hs, hs);
-                ctx.fillRect(px + pw - hs / 2, py - hs / 2, hs, hs);
-                ctx.fillRect(px - hs / 2, py + ph - hs / 2, hs, hs);
-                ctx.fillRect(px + pw - hs / 2, py + ph - hs / 2, hs, hs);
+            // Dibujar bordes y controles para el elemento seleccionado
+            if (selectedElement) {
+                if (selectedElement.type === 'image' || selectedElement.type === 'rectangle') {
+                    const px = (selectedElement.x / 100) * logicalW * zoom;
+                    const py = (selectedElement.y / 100) * logicalH * zoom;
+                    const pw = (selectedElement.ancho / 100) * logicalW * zoom;
+                    const ph = (selectedElement.alto / 100) * logicalH * zoom;
+                    
+                    ctx.strokeStyle = '#4a90e2';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(px, py, pw, ph);
+                    
+                    const hs = 10;
+                    ctx.fillStyle = '#e74c3c';
+                    ctx.fillRect(px - hs / 2, py - hs / 2, hs, hs);
+                    ctx.fillRect(px + pw - hs / 2, py - hs / 2, hs, hs);
+                    ctx.fillRect(px - hs / 2, py + ph - hs / 2, hs, hs);
+                    ctx.fillRect(px + pw - hs / 2, py + ph - hs / 2, hs, hs);
+                } else if (selectedElement.type === 'coordinate') {
+                    const px = (selectedElement.x / 100) * logicalW * zoom;
+                    const py = (selectedElement.y / 100) * logicalH * zoom;
+                    
+                    // Dibujar un círculo azul alrededor de la coordenada seleccionada
+                    ctx.strokeStyle = '#4a90e2';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(px, py, 10 * zoom, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
             }
             
             // Programar el siguiente frame para animaciones
@@ -463,8 +568,9 @@
                 return;
             }
             
-            const newImgData = {
-                name: `cuadro ${images.length + 1}`,
+            const newElement = {
+                type: 'image',
+                name: `imagen ${elements.filter(e => e.type === 'image').length + 1}`,
                 x: 40,
                 y: 40,
                 ancho: 20,
@@ -474,24 +580,54 @@
                 isGif: url.toLowerCase().endsWith('.gif')
             };
             
-            newImgData.img.crossOrigin = 'anonymous';
-            newImgData.img.onload = () => {
+            newElement.img.crossOrigin = 'anonymous';
+            newElement.img.onload = () => {
                 draw();
                 updateList();
             };
-            newImgData.img.onerror = () => {
+            newElement.img.onerror = () => {
                 alert('Error al cargar la imagen. Verifica la URL y que no tenga restricciones CORS.');
-                // Eliminar la imagen de la lista si falla la carga
-                const index = images.indexOf(newImgData);
+                // Eliminar el elemento de la lista si falla la carga
+                const index = elements.indexOf(newElement);
                 if (index > -1) {
-                    images.splice(index, 1);
+                    elements.splice(index, 1);
                     updateList();
                 }
             };
-            newImgData.img.src = url;
-            images.push(newImgData);
-            selectedImage = newImgData;
+            newElement.img.src = url;
+            elements.push(newElement);
+            selectedElement = newElement;
             document.getElementById('urlInput').value = '';
+            draw();
+            updateList();
+        }
+
+        function addRectangle() {
+            const newElement = {
+                type: 'rectangle',
+                name: `rectángulo ${elements.filter(e => e.type === 'rectangle').length + 1}`,
+                x: 40,
+                y: 40,
+                ancho: 20,
+                alto: 20
+            };
+            
+            elements.push(newElement);
+            selectedElement = newElement;
+            draw();
+            updateList();
+        }
+
+        function addCoordinate() {
+            const newElement = {
+                type: 'coordinate',
+                name: `coordenada ${elements.filter(e => e.type === 'coordinate').length + 1}`,
+                x: 50, // Centro por defecto
+                y: 50  // Centro por defecto
+            };
+            
+            elements.push(newElement);
+            selectedElement = newElement;
             draw();
             updateList();
         }
@@ -508,39 +644,64 @@
                         throw new Error('Formato JSON inválido');
                     }
                     
-                    // Limpiar imágenes anteriores
-                    images.forEach(img => {
-                        if (img.img) {
-                            img.img.src = ''; // Liberar recursos
+                    // Limpiar elementos anteriores
+                    elements.forEach(element => {
+                        if (element.img) {
+                            element.img.src = ''; // Liberar recursos
                         }
                     });
                     
-                    images = [];
-                    selectedImage = null;
+                    elements = [];
+                    selectedElement = null;
                     
-                    // Cargar nuevas imágenes
+                    // Cargar nuevos elementos
                     jsonData.cuadros.forEach(cuadro => {
-                        const imgData = {
-                            name: cuadro.nombre || `cuadro ${images.length + 1}`,
-                            x: cuadro.x || 0,
-                            y: cuadro.y || 0,
-                            ancho: cuadro.ancho || 20,
-                            alto: cuadro.alto || 20,
-                            url: cuadro.url || '',
-                            img: new Image(),
-                            isGif: (cuadro.url || '').toLowerCase().endsWith('.gif')
-                        };
-                        
-                        imgData.img.crossOrigin = 'anonymous';
-                        imgData.img.onload = () => {
-                            draw();
-                            updateList();
-                        };
-                        imgData.img.onerror = () => {
-                            console.warn(`No se pudo cargar la imagen: ${imgData.url}`);
-                        };
-                        imgData.img.src = imgData.url;
-                        images.push(imgData);
+                        // Determinar si es una imagen, rectángulo o coordenada
+                        if (cuadro.url) {
+                            // Es una imagen
+                            const element = {
+                                type: 'image',
+                                name: cuadro.nombre || `imagen ${elements.filter(e => e.type === 'image').length + 1}`,
+                                x: cuadro.x || 0,
+                                y: cuadro.y || 0,
+                                ancho: cuadro.ancho || 20,
+                                alto: cuadro.alto || 20,
+                                url: cuadro.url || '',
+                                img: new Image(),
+                                isGif: (cuadro.url || '').toLowerCase().endsWith('.gif')
+                            };
+                            
+                            element.img.crossOrigin = 'anonymous';
+                            element.img.onload = () => {
+                                draw();
+                                updateList();
+                            };
+                            element.img.onerror = () => {
+                                console.warn(`No se pudo cargar la imagen: ${element.url}`);
+                            };
+                            element.img.src = element.url;
+                            elements.push(element);
+                        } else if (cuadro.ancho && cuadro.alto) {
+                            // Es un rectángulo
+                            const element = {
+                                type: 'rectangle',
+                                name: cuadro.nombre || `rectángulo ${elements.filter(e => e.type === 'rectangle').length + 1}`,
+                                x: cuadro.x || 0,
+                                y: cuadro.y || 0,
+                                ancho: cuadro.ancho || 20,
+                                alto: cuadro.alto || 20
+                            };
+                            elements.push(element);
+                        } else {
+                            // Es una coordenada
+                            const element = {
+                                type: 'coordinate',
+                                name: cuadro.nombre || `coordenada ${elements.filter(e => e.type === 'coordinate').length + 1}`,
+                                x: cuadro.x || 0,
+                                y: cuadro.y || 0
+                            };
+                            elements.push(element);
+                        }
                     });
                     
                     draw();
@@ -554,28 +715,28 @@
         }
 
         function updateList() {
-            const list = document.getElementById('imageList');
-            const countElement = document.getElementById('imageCount');
+            const list = document.getElementById('elementList');
+            const countElement = document.getElementById('elementCount');
             list.innerHTML = '';
             
-            images.forEach((img, idx) => {
+            elements.forEach((element, idx) => {
                 const div = document.createElement('div');
-                if (img === selectedImage) {
+                if (element === selectedElement) {
                     div.classList.add('selected');
                 }
                 
                 const inp = document.createElement('input');
                 inp.type = 'text';
-                inp.value = img.name;
+                inp.value = element.name;
                 inp.onchange = () => {
-                    img.name = inp.value;
+                    element.name = inp.value;
                     draw();
                 };
                 
                 const selBtn = document.createElement('button');
                 selBtn.textContent = 'Seleccionar';
                 selBtn.onclick = () => {
-                    selectedImage = img;
+                    selectedElement = element;
                     updateList();
                     draw();
                 };
@@ -583,50 +744,79 @@
                 const delBtn = document.createElement('button');
                 delBtn.textContent = 'Eliminar';
                 delBtn.onclick = () => {
-                    // Liberar recursos de la imagen
-                    if (img.img) {
-                        img.img.src = '';
+                    // Liberar recursos de la imagen si es necesario
+                    if (element.img) {
+                        element.img.src = '';
                     }
                     
-                    const i = images.indexOf(img);
-                    images.splice(i, 1);
-                    if (selectedImage === img) selectedImage = null;
+                    const i = elements.indexOf(element);
+                    elements.splice(i, 1);
+                    if (selectedElement === element) selectedElement = null;
                     updateList();
                     draw();
                 };
                 
                 div.appendChild(inp);
-                if (img.isGif) {
+                if (element.type === 'image' && element.isGif) {
                     const gifIndicator = document.createElement('span');
                     gifIndicator.textContent = 'GIF';
                     gifIndicator.classList.add('gif-indicator');
                     div.appendChild(gifIndicator);
+                } else if (element.type === 'rectangle') {
+                    const rectIndicator = document.createElement('span');
+                    rectIndicator.textContent = 'R';
+                    rectIndicator.classList.add('rectangle-indicator');
+                    div.appendChild(rectIndicator);
+                } else if (element.type === 'coordinate') {
+                    const coordIndicator = document.createElement('span');
+                    coordIndicator.textContent = 'X';
+                    coordIndicator.classList.add('coordinate-indicator');
+                    div.appendChild(coordIndicator);
                 }
                 div.appendChild(selBtn);
                 div.appendChild(delBtn);
                 list.appendChild(div);
             });
             
-            countElement.textContent = `(${images.length})`;
+            countElement.textContent = `(${elements.length})`;
         }
 
         function saveJSON() {
-            if (images.length === 0) {
-                alert('No hay imágenes para guardar');
+            if (elements.length === 0) {
+                alert('No hay elementos para guardar');
                 return;
             }
             
             const menuName = prompt('Nombre del menú:') || 'menu_default';
             const jsonData = {
                 nombre: menuName,
-                cuadros: images.map(img => ({
-                    nombre: img.name,
-                    x: img.x,
-                    y: img.y,
-                    alto: img.alto,
-                    ancho: img.ancho,
-                    url: img.url
-                }))
+                cuadros: elements.map(element => {
+                    if (element.type === 'image') {
+                        return {
+                            nombre: element.name,
+                            x: element.x,
+                            y: element.y,
+                            alto: element.alto,
+                            ancho: element.ancho,
+                            url: element.url
+                        };
+                    } else if (element.type === 'rectangle') {
+                        return {
+                            nombre: element.name,
+                            x: element.x,
+                            y: element.y,
+                            alto: element.alto,
+                            ancho: element.ancho
+                        };
+                    } else {
+                        return {
+                            nombre: element.name,
+                            x: element.x,
+                            y: element.y
+                            // Sin ancho ni alto para coordenadas
+                        };
+                    }
+                })
             };
             
             const jsonStr = JSON.stringify(jsonData, null, 2);
