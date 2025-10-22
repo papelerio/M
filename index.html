@@ -147,6 +147,17 @@
             padding-bottom: 10px;
             border-bottom: 1px solid #eee;
         }
+        #customViewInputs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 5px;
+        }
+        #customViewInputs input {
+            flex: 1;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -160,6 +171,12 @@
                 <button class="viewBtn" onclick="setView('pc')">PC Horizontal (1920x1080)</button>
                 <button class="viewBtn" onclick="setView('mobileH')">Móvil Horizontal (800x480)</button>
                 <button class="viewBtn" onclick="setView('mobileV')">Móvil Vertical (480x800)</button>
+                <div id="customViewInputs">
+                    <input type="number" id="customW" placeholder="Ancho" min="1">
+                    <span>x</span>
+                    <input type="number" id="customH" placeholder="Alto" min="1">
+                </div>
+                <button class="viewBtn" onclick="setCustomView()">Aplicar Personalizado</button>
             </div>
             
             <div class="section">
@@ -201,7 +218,7 @@
         let pivotRelX, pivotRelY, initialDist;
         let animationFrameId = null;
 
-        const views = {
+        let views = {
             'pc': { w: 1920, h: 1080 },
             'mobileH': { w: 800, h: 480 },
             'mobileV': { w: 480, h: 800 }
@@ -216,6 +233,16 @@
 
         function setView(viewName) {
             currentView = viewName;
+            zoom = 1;
+            updateCanvasSize();
+            updateList();
+        }
+
+        function setCustomView() {
+            const w = parseInt(document.getElementById('customW').value) || 1920;
+            const h = parseInt(document.getElementById('customH').value) || 1080;
+            currentView = 'custom';
+            views['custom'] = { w, h };
             zoom = 1;
             updateCanvasSize();
             updateList();
@@ -495,6 +522,11 @@
                     const ph = (element.alto / 100) * logicalH * zoom;
                     
                     ctx.drawImage(element.img, px, py, pw, ph);
+                    
+                    // Añadir borde negro ligero
+                    ctx.strokeStyle = '#000';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(px, py, pw, ph);
                 } else if (element.type === 'rectangle') {
                     const px = (element.x / 100) * logicalW * zoom;
                     const py = (element.y / 100) * logicalH * zoom;
@@ -504,6 +536,11 @@
                     // Dibujar rectángulo con color fijo (azul)
                     ctx.fillStyle = '#3498db';
                     ctx.fillRect(px, py, pw, ph);
+                    
+                    // Añadir borde negro ligero
+                    ctx.strokeStyle = '#000';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(px, py, pw, ph);
                 } else if (element.type === 'coordinate') {
                     const px = (element.x / 100) * logicalW * zoom;
                     const py = (element.y / 100) * logicalH * zoom;
